@@ -80,7 +80,12 @@
                     
                     <div class="form-group">
                         <label for="productCategory">Categoría</label>
-                        <input type="text" id="productCategory" name="categoria" placeholder="Ej: Granos, Lácteos" required>
+                        <select id="productCategory" name="categoria" required>
+                            <option value="">Seleccione una categoría</option>
+                            <option value="Electrodomesticos y Articulos del hogar">Electrodomésticos y Artículos del hogar</option>
+                            <option value="Dulces y Regalos">Dulces y Regalos</option>
+                            <option value="Juguetes">Juguetes</option>
+                        </select>
                     </div>
                     
                     <div class="form-group">
@@ -132,6 +137,10 @@
         }
         document.getElementById('userInfo').textContent = username || 'Almacenero';
 
+        // Variables globales
+        allProducts = [];
+        let currentEditingId = null; // ✅ Variable global para controlar edición
+
         // ✅ Previsualización de imagen
         document.getElementById('productImage')?.addEventListener('change', function(e) {
             const preview = document.getElementById('imagePreview');
@@ -146,14 +155,18 @@
         });
 
         // ✅ Funciones
-        function showAddProductForm() {
+        function showAddProductForm(isEditing = false) {
             document.getElementById('welcomeMessage').classList.add('hidden');
             document.getElementById('addProductSection').classList.remove('hidden');
             document.getElementById('viewProductsSection').classList.add('hidden');
-            document.getElementById('pageTitle').textContent = 'Agregar/Actualizar Producto';
-            document.getElementById('productForm').reset();
-            document.getElementById('imagePreview').innerHTML = '';
-            delete document.getElementById('productForm').dataset.editingId;
+            
+            if (!isEditing) {
+                // ✅ Limpiar formulario COMPLETAMENTE al crear nuevo
+                document.getElementById('productForm').reset();
+                document.getElementById('imagePreview').innerHTML = '';
+                currentEditingId = null;
+                document.getElementById('pageTitle').textContent = 'Agregar Producto';
+            }
         }
 
         function showViewProducts() {
@@ -243,18 +256,45 @@
             const product = allProducts.find(p => p.id === productId);
             if (!product) return;
 
-            document.getElementById('productName').value = product.nombreproducto;
-            document.getElementById('productType').value = product.tipoproducto;
-            document.getElementById('productCategory').value = product.categoria;
-            document.getElementById('productStock').value = product.stock;
-            if (product.fechavencimiento) {
-                document.getElementById('productExpiryDate').value = product.fechavencimiento.split('T')[0];
-            }
-            // No prellenamos imagen (solo para crear)
+            // ✅ Limpiar formulario antes de rellenar
+            document.getElementById('productForm').reset();
+            document.getElementById('imagePreview').innerHTML = '';
+            
+            // ✅ Rellenar campos con valores seguros
+            document.getElementById('productName').value = product.nombreproducto || '';
+            document.getElementById('productType').value = product.tipoproducto || '';
+            document.getElementById('productCategory').value = product.categoria || '';
+            document.getElementById('productStock').value = product.stock || 1;
 
-            showAddProductForm();
-            document.getElementById('pageTitle').textContent = `✏️ Editando: ${product.nombreproducto}`;
-            document.getElementById('productForm').dataset.editingId = productId;
+            // ✅ Manejo robusto de fecha
+            let fechaStr = '';
+            if (product.fechavencimiento) {
+                if (typeof product.fechavencimiento === 'string') {
+                    if (product.fechavencimiento.includes('T')) {
+                        fechaStr = product.fechavencimiento.split('T')[0];
+                    } else {
+                        fechaStr = product.fechavencimiento;
+                    }
+                } else if (product.fechavencimiento instanceof Date) {
+                    fechaStr = product.fechavencimiento.toISOString().split('T')[0];
+                } else {
+                    fechaStr = product.fechavencimiento;
+                }
+            }
+            document.getElementById('productExpiryDate').value = fechaStr;
+
+            // ✅ Previsualización de imagen
+            if (product.imagen) {
+                document.getElementById('imagePreview').innerHTML = 
+                    `<img src="http://127.0.0.1:8000${product.imagen}" alt="Previsualización" style="max-width:200px; max-height:200px; border-radius:8px;">`;
+            }
+
+            // ✅ Establecer ID de edición (USANDO VARIABLE GLOBAL)
+            currentEditingId = productId;
+
+            // ✅ Mostrar formulario en modo edición
+            showAddProductForm(true);
+            document.getElementById('pageTitle').textContent = `✏️ Editando: ${product.nombreproducto || 'Producto'}`;
         }
 
         document.getElementById('productForm').addEventListener('submit', async function(e) {
@@ -262,12 +302,6 @@
 
             // ✅ FormData para subir imagen
             const formData = new FormData(this);
-
-            // ✅ Depuración segura
-            console.log('Campos enviados:');
-            for (let [key, value] of formData.entries()) {
-                console.log(`  ${key}:`, value);
-            }
 
             // ✅ Validación
             if (!formData.get('nombreproducto')) return alert('Nombre es obligatorio');
@@ -277,14 +311,13 @@
             if (!formData.get('fechavencimiento')) return alert('Fecha de vencimiento es obligatoria');
 
             try {
-                const editingId = this.dataset.editingId;
-                const url = editingId 
-                    ? `http://127.0.0.1:8000/api/almacen/${editingId}/`
+                // ✅ Usar VARIABLE GLOBAL para determinar si es edición
+                const isEditing = currentEditingId !== null;
+                const url = isEditing 
+                    ? `http://127.0.0.1:8000/api/almacen/${currentEditingId}/`
                     : 'http://127.0.0.1:8000/api/almacen/create/';
+                const method = isEditing ? 'PUT' : 'POST';
 
-                const method = editingId ? 'PUT' : 'POST';
-
-                // ✅ Sin Content-Type (deja que el navegador lo gestione)
                 const res = await fetch(url, {
                     method,
                     headers: {
@@ -305,14 +338,23 @@
                     throw new Error(data.error || data.detail || `HTTP ${res.status}`);
                 }
 
-                if (editingId) {
-                    const index = allProducts.findIndex(p => p.id == editingId);
-                    if (index !== -1) allProducts[index] = data;
+                if (isEditing) {
+                    // ✅ Actualizar producto existente en la lista local
+                    const index = allProducts.findIndex(p => p.id == currentEditingId);
+                    if (index !== -1) {
+                        allProducts[index] = data;
+                    }
+                    alert('✅ Producto actualizado');
                 } else {
+                    // ✅ Agregar nuevo producto a la lista local
                     allProducts.push(data);
+                    alert('✅ Producto creado');
                 }
-                alert(editingId ? '✅ Producto actualizado' : '✅ Producto creado');
+                
+                // ✅ Limpiar y mostrar lista actualizada
+                currentEditingId = null;
                 showViewProducts();
+                
             } catch (err) {
                 console.error('Error:', err);
                 alert(`❌ ${err.message}`);
@@ -323,7 +365,12 @@
         document.addEventListener('DOMContentLoaded', () => {
             loadProducts();
 
-            document.getElementById('menuAddProduct')?.addEventListener('click', showAddProductForm);
+            document.getElementById('menuAddProduct')?.addEventListener('click', () => {
+                // ✅ Siempre limpiar al crear nuevo producto
+                currentEditingId = null;
+                showAddProductForm();
+            });
+            
             document.getElementById('menuViewProducts')?.addEventListener('click', showViewProducts);
             document.getElementById('btnViewProducts')?.addEventListener('click', showViewProducts);
 

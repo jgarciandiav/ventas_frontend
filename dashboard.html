@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiTiendas - Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAP//AP///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=">
+</head>
+<body class="dashboard-page">
+    <div class="sidebar">
+        <div class="logo">
+            <h1>MultiTiendas</h1>
+            <p>Sistema de gestión</p>
+        </div>
+        
+        <div class="menu-item" onclick="toggleSubmenu('submenu1')">
+            Electrodomésticos y Artículos del hogar
+        </div>
+        <div class="submenu" id="submenu1">
+            <div class="submenu-item" onclick="filterProducts('electrodomesticos')">Electrodomésticos</div>
+            <div class="submenu-item" onclick="filterProducts('articulos-hogar')">Artículos de hogar</div>
+        </div>
+
+        <div class="menu-item" onclick="toggleSubmenu('submenu2')">
+            Dulces y Regalos
+        </div>
+        <div class="submenu" id="submenu2">
+            <div class="submenu-item" onclick="filterProducts('dulces')">Dulces</div>
+            <div class="submenu-item" onclick="filterProducts('confituras')">Confituras</div>
+            <div class="submenu-item" onclick="filterProducts('regalos')">Regalos</div>
+        </div>
+
+        <div class="menu-item" onclick="toggleSubmenu('submenu3')">
+            Juguetes
+        </div>
+        <div class="submenu" id="submenu3">
+            <div class="submenu-item" onclick="filterProducts('juguetes')">Juguetes</div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="top-bar">
+            <div class="top-bar-left">
+                <select class="category-dropdown" id="categoryDropdown" onchange="filterProductsFromDropdown(this.value)" aria-label="Filtrar productos por categoría">
+                    <option value="">Todos los productos</option>
+                    <option value="electrodomesticos">Electrodomésticos</option>
+                    <option value="articulos-hogar">Artículos de hogar</option>
+                    <option value="dulces">Dulces</option>
+                    <option value="confituras">Confituras</option>
+                    <option value="regalos">Regalos</option>
+                    <option value="juguetes">Juguetes</option>
+                </select>
+            </div>
+            
+            <div class="top-bar-right">
+                <button class="top-btn cart-btn" onclick="toggleCart()">
+                    🛒 Carrito <span class="cart-count" id="cartCount">0</span>
+                </button>
+                <div class="user-dropdown">
+                    <button class="top-btn" id="userBtn">
+                        👤 <span id="userInfo">Cliente</span>
+                    </button>
+                    <div class="dropdown-menu" id="userDropdown">
+                        <div class="dropdown-item" onclick="logout()">🚪 Cerrar Sesión</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <div id="productsSection">
+                <h3 class="category-title" id="categoryTitle">Todos los Productos</h3>
+                <div class="products-grid" id="productsGrid"></div>
+            </div>
+        </div>
+
+        <div class="decorative-circles">
+            <div class="circle circle1"></div>
+            <div class="circle circle2"></div>
+            <div class="circle circle3"></div>
+        </div>
+    </div>
+
+    <div class="cart-modal" id="cartModal">
+        <div class="cart-content">
+            <div class="cart-header">
+                <h2>🛒 Mi Carrito de Compras</h2>
+                <button class="close-cart" onclick="toggleCart()">✕</button>
+            </div>
+            
+            <div class="cart-items" id="cartItems">
+                <div class="empty-cart">
+                    <p>Tu carrito está vacío</p>
+                    <p class="empty-cart-subtitle">Agrega productos para comenzar tu compra</p>
+                </div>
+            </div>
+            
+            <div class="cart-footer">
+                <div class="cart-total">
+                    <span>Total:</span>
+                    <span class="total-amount" id="totalAmount">S/ 0.00</span>
+                </div>
+                <button class="checkout-btn" onclick="checkout()">Proceder al Pago</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // ✅ Verificación de sesión (usa variables de script.js)
+        const token = localStorage.getItem('auth_token');
+        const rol = localStorage.getItem('rol');
+        const username = localStorage.getItem('username');
+
+        if (!token || !rol || rol !== 'usuario') {
+            alert('Acceso denegado. Inicia sesión como cliente.');
+            window.location.href = 'login.html';
+        }
+        document.getElementById('userInfo').textContent = username || 'Cliente';
+
+        // ✅ Eventos
+        document.getElementById('userBtn').addEventListener('click', function(e) {
+            e.stopPropagation();
+            document.getElementById('userDropdown').classList.toggle('active');
+        });
+
+        document.addEventListener('click', function() {
+            document.getElementById('userDropdown').classList.remove('active');
+        });
+
+        function logout() {
+            if (confirm('¿Desea cerrar sesión?')) {
+                localStorage.clear();
+                window.location.href = 'login.html';
+            }
+        }
+
+        function filterProductsFromDropdown(value) {
+            filterProducts(value);
+        }
+
+        // ✅ Iniciar
+        window.addEventListener('load', () => {
+            loadProductsFromAPI(); // ✅ Usa función de script.js
+        });
+    </script>
+</body>
+</html>

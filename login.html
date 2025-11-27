@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiTiendas - Login</title>
+    <link rel="icon" type="image/jpg" href="images/logo.jpg">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Estilos para el formulario de registro */
+        .toggle-link {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: #00b4db;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .toggle-link:hover {
+            text-decoration: underline;
+        }
+        .register-container {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="login-page">
+    <h1 class="login-h1">MultiTiendas</h1>
+    <div class="login-container">
+        <!-- Login Form -->
+        <div id="loginSection">
+            <div class="login-header">
+                <p>Inicio de Sesión</p>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Usuario</label>
+                    <input type="text" id="username" placeholder="Ingrese su usuario" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <input type="password" id="password" placeholder="Ingrese su contraseña" required>
+                </div>
+                <button type="submit" class="login-btn">Iniciar Sesión</button>
+                <div class="error-message" id="errorMessage">
+                    Usuario o contraseña incorrectos
+                </div>
+            </form>
+            <a class="toggle-link" id="showRegister">¿No tienes cuenta? Regístrate</a>
+        </div>
+
+        <!-- Register Form -->
+        <div id="registerSection" class="register-container">
+            <div class="login-header">
+                <p>Registro de Usuario</p>
+            </div>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="regUsername">Usuario</label>
+                    <input type="text" id="regUsername" placeholder="Elige un nombre de usuario" required minlength="3">
+                </div>
+                <div class="form-group">
+                    <label for="regEmail">Email</label>
+                    <input type="email" id="regEmail" placeholder="tu@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="regPassword">Contraseña</label>
+                    <input type="password" id="regPassword" placeholder="Crea una contraseña" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="regPassword2">Confirmar Contraseña</label>
+                    <input type="password" id="regPassword2" placeholder="Repite la contraseña" required>
+                </div>
+                <button type="submit" class="login-btn">Crear Cuenta</button>
+                <div class="error-message" id="registerError">
+                    Error al registrar
+                </div>
+            </form>
+            <a class="toggle-link" id="showLogin">¿Ya tienes cuenta? Inicia sesión</a>
+        </div>
+    </div>
+
+    <p class="parrafo">Tu tienda donde todo lo puedes encontrar, ahora más eficiente.<br>Descubre desde electrónica básica y artículos para el hogar,hasta juguetes, papelería y los regalos más originales.<br><b>¡Visítanos y encuentra lo que necesitas!</b> </p>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api';
+
+        // Toggle entre login y registro
+        document.getElementById('showRegister').onclick = (e) => {
+            e.preventDefault();
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('registerSection').style.display = 'block';
+        };
+
+        document.getElementById('showLogin').onclick = (e) => {
+            e.preventDefault();
+            document.getElementById('registerSection').style.display = 'none';
+            document.getElementById('loginSection').style.display = 'block';
+        };
+
+        // Login
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const errorMessage = document.getElementById('errorMessage');
+
+            document.querySelector('.login-btn').textContent = 'Iniciando...';
+            document.querySelector('.login-btn').disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE}/login/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('auth_token', data.token);
+                    localStorage.setItem('username', data.username);
+                    localStorage.setItem('rol', data.rol);
+
+                    if (data.rol === 'admin') {
+                        window.location.href = 'administrador.html';
+                    } else if (data.rol === 'almacenero') {
+                        window.location.href = 'almacenero.html';
+                    } else {
+                        window.location.href = 'dashboard.html';
+                    }
+                } else {
+                    throw new Error(data.error || 'Credenciales inválidas');
+                }
+
+            } catch (err) {
+                errorMessage.classList.add('show');
+                errorMessage.textContent = err.message;
+                console.error('Error en login:', err);
+            } finally {
+                document.querySelector('.login-btn').textContent = 'Iniciar Sesión';
+                document.querySelector('.login-btn').disabled = false;
+            }
+        });
+
+        // Registro
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const username = document.getElementById('regUsername').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const password2 = document.getElementById('regPassword2').value;
+            const errorEl = document.getElementById('registerError');
+
+            // Validación frontend
+            if (password !== password2) {
+                errorEl.textContent = 'Las contraseñas no coinciden';
+                errorEl.classList.add('show');
+                return;
+            }
+
+            document.querySelector('.login-btn').textContent = 'Registrando...';
+            document.querySelector('.login-btn').disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE}/register/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        username, 
+                        email, 
+                        password,
+                        rol: 'usuario'  // ← por defecto
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('✅ ¡Registro exitoso! Ahora puedes iniciar sesión.');
+                    // Volver a login
+                    document.getElementById('registerSection').style.display = 'none';
+                    document.getElementById('loginSection').style.display = 'block';
+                    document.getElementById('username').value = username;
+                    document.getElementById('password').value = '';
+                    document.getElementById('registerForm').reset();
+                } else {
+                    throw new Error(data.error || data.detail || 'Error al registrar');
+                }
+
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.classList.add('show');
+                console.error('Error en registro:', err);
+            } finally {
+                document.querySelector('.login-btn').textContent = 'Crear Cuenta';
+                document.querySelector('.login-btn').disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

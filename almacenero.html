@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiTiendas - Almacenero</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAP//AP///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=">
+</head>
+<body class="dashboard-page">
+    <div class="sidebar">
+        <div class="logo">
+            <h1>MultiTiendas</h1>
+            <p>Sistema de gestión</p>
+        </div>
+        
+        <div class="menu-item-simple" id="menuAddProduct">
+            Agregar Productos a la Tienda
+        </div>
+        <div class="menu-item-simple" id="menuViewProducts">
+            Ver Productos Agregados
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="top-bar">
+            <div class="top-bar-left">
+                <h2 id="pageTitle">Panel de Almacenero</h2>
+            </div>
+            
+            <div class="top-bar-right">
+                <div class="user-dropdown">
+                    <button class="top-btn" id="userBtn">
+                        👤 <span id="userInfo">Almacenero</span>
+                    </button>
+                    <div class="dropdown-menu" id="userDropdown">
+                        <div class="dropdown-item" id="logoutBtn">🚪 Cerrar Sesión</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-area" id="contentArea">
+            <div class="welcome-message" id="welcomeMessage">
+                <h2>Bienvenido al Panel de Almacenero</h2>
+                <p>Selecciona una opción del menú para comenzar</p>
+            </div>
+
+            <div id="addProductSection" class="hidden">
+                <h3 class="category-title">Agregar/Actualizar Producto</h3>
+                <form id="productForm" class="product-form">
+                    <div class="form-group">                        
+                        <label for="productName">Nombre del Producto</label>
+                        <input type="text" id="productName" placeholder="Ej: Arroz 1kg" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="productType">Tipo de Producto</label>
+                        <select id="productType" required>
+                            <option value="">Seleccione un tipo</option>
+                            <option value="electrodomesticos">Electrodomésticos</option>
+                            <option value="articulos-hogar">Artículos de hogar</option>
+                            <option value="dulces">Dulces</option>
+                            <option value="confituras">Confituras</option>
+                            <option value="regalos">Regalos</option>
+                            <option value="juguetes">Juguetes</option>
+                            <option value="alimentos">Alimentos</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="productCategory">Categoría</label>
+                        <input type="text" id="productCategory" placeholder="Ej: Granos, Lácteos, Limpieza" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="productPrice">Precio Unitario (S/)</label>
+                        <input type="number" id="productPrice" step="0.01" min="0.01" placeholder="Ej: 5.50" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="productStock">Stock Inicial</label>
+                        <input type="number" id="productStock" min="1" placeholder="Ej: 10" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="productExpiryDate">Fecha de Vencimiento</label>
+                        <input type="date" id="productExpiryDate" required>
+                    </div>
+                    
+                    <button type="submit" class="buy-btn">✅ Guardar Producto</button>
+                    <button type="button" class="buy-btn secondary" id="btnViewProducts">
+                        👀 Ver Productos Existentes
+                    </button>
+                </form>
+            </div>
+
+            <div id="viewProductsSection" class="hidden">
+                <h3 class="category-title">Productos en Almacén</h3>
+                <div class="products-grid" id="addedProductsGrid"></div>
+            </div>
+        </div>
+
+        <div class="decorative-circles">
+            <div class="circle circle1"></div>
+            <div class="circle circle2"></div>
+            <div class="circle circle3"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // ✅ Verificación de sesión
+        const token = localStorage.getItem('auth_token');
+        const rol = localStorage.getItem('rol');
+        const username = localStorage.getItem('username');
+
+        if (!token || !rol || rol !== 'almacenero') {
+            alert('Acceso denegado. Inicia sesión como almacenero.');
+            window.location.href = 'login.html';
+        }
+        document.getElementById('userInfo').textContent = username || 'Almacenero';
+
+        // ❌ NO se declara allProducts aquí
+
+        // ✅ Funciones
+        function showAddProductForm() {
+            document.getElementById('welcomeMessage').classList.add('hidden');
+            document.getElementById('addProductSection').classList.remove('hidden');
+            document.getElementById('viewProductsSection').classList.add('hidden');
+            document.getElementById('pageTitle').textContent = 'Agregar/Actualizar Producto';
+            document.getElementById('productForm').reset();
+            delete document.getElementById('productForm').dataset.editingId;
+        }
+
+        function showViewProducts() {
+            document.getElementById('welcomeMessage').classList.add('hidden');
+            document.getElementById('addProductSection').classList.add('hidden');
+            document.getElementById('viewProductsSection').classList.remove('hidden');
+            document.getElementById('pageTitle').textContent = 'Productos en Almacén';
+            displayProducts();
+        }
+
+        async function loadProducts() {
+            try {
+                const res = await fetch('http://127.0.0.1:8000/api/almacen/', {
+                    headers: { 'Authorization': `Token ${token}` }
+                });
+                if (!res.ok) throw new Error(await res.text());
+                allProducts = await res.json();
+                showViewProducts();
+            } catch (err) {
+                alert(`❌ Error: ${err.message}`);
+                console.error(err);
+            }
+        }
+
+        function displayProducts() {
+            const grid = document.getElementById('addedProductsGrid');
+            grid.innerHTML = allProducts.map(p => `
+                <div class="product-card">
+                    <div class="product-info">
+                        <div class="product-name">${p.nombreproducto}</div>
+                        <div class="product-category">Tipo: ${p.tipoproducto}</div>
+                        <div class="product-category">Categoría: ${p.categoria}</div>
+                        <div class="product-price">Precio: S/ ${parseFloat(p.precio).toFixed(2)}</div>
+                        <div class="product-stock ${p.stock < 5 ? 'low' : ''}">Stock: ${p.stock}</div>
+                        <div class="product-expiry">Vence: ${new Date(p.fechavencimiento).toLocaleDateString()}</div>
+                        <div class="product-actions">
+                            <button class="buy-btn small" onclick="updateStock(${p.id})">
+                                ➕ Actualizar Stock
+                            </button>
+                            <button class="buy-btn small secondary" onclick="editProduct(${p.id})">
+                                ✏️ Editar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateStock(productId) {
+            const product = allProducts.find(p => p.id === productId);
+            if (!product) return;
+
+            const newStock = prompt(`Ingrese nuevo stock para "${product.nombreproducto}"\nStock actual: ${product.stock}`, product.stock);
+            if (newStock === null) return;
+
+            const stockNum = parseInt(newStock);
+            if (isNaN(stockNum) || stockNum < 0) {
+                alert('Stock debe ser un número entero ≥ 0');
+                return;
+            }
+
+            fetch(`http://127.0.0.1:8000/api/almacen/${productId}/update-stock/`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Token ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ stock: stockNum })
+            })
+            .then(r => r.json())
+            .then(data => {
+                alert('✅ Stock actualizado');
+                product.stock = stockNum;
+                displayProducts();
+            })
+            .catch(err => {
+                alert(`❌ Error: ${err.message}`);
+                console.error(err);
+            });
+        }
+
+        function editProduct(productId) {
+            const product = allProducts.find(p => p.id === productId);
+            if (!product) return;
+
+            document.getElementById('productName').value = product.nombreproducto;
+            document.getElementById('productType').value = product.tipoproducto;
+            document.getElementById('productCategory').value = product.categoria;
+            document.getElementById('productPrice').value = product.precio;
+            document.getElementById('productStock').value = product.stock;
+            if (product.fechavencimiento) {
+                document.getElementById('productExpiryDate').value = product.fechavencimiento.split('T')[0];
+            }
+
+            showAddProductForm();
+            document.getElementById('pageTitle').textContent = `✏️ Editando: ${product.nombreproducto}`;
+            document.getElementById('productForm').dataset.editingId = productId;
+        }
+
+        document.getElementById('productForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // ✅ Datos con nombres de TU MODELO
+            const formData = {
+                nombreproducto: document.getElementById('productName').value.trim(),
+                tipoproducto: document.getElementById('productType').value,
+                categoria: document.getElementById('productCategory').value.trim(),
+                precio: parseFloat(document.getElementById('productPrice').value),
+                stock: parseInt(document.getElementById('productStock').value),
+                fechavencimiento: document.getElementById('productExpiryDate').value
+            };
+
+            // ✅ Validación estricta
+            if (!formData.nombreproducto) return alert('Nombre es obligatorio');
+            if (!formData.tipoproducto) return alert('Tipo es obligatorio');
+            if (!formData.categoria) return alert('Categoría es obligatoria');
+            if (isNaN(formData.precio) || formData.precio <= 0) return alert('Precio debe ser > 0');
+            if (isNaN(formData.stock) || formData.stock < 1) return alert('Stock debe ser ≥ 1');
+            if (!formData.fechavencimiento) return alert('Fecha de vencimiento es obligatoria');
+
+            try {
+                const editingId = this.dataset.editingId;
+                const url = editingId 
+                    ? `http://127.0.0.1:8000/api/almacen/${editingId}/`
+                    : 'http://127.0.0.1:8000/api/almacen/create/';  // ← URL corregida
+
+                const method = editingId ? 'PUT' : 'POST';
+
+                const res = await fetch(url, {
+                    method,
+                    headers: {
+                        'Authorization': `Token ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Error al crear');
+
+                if (editingId) {
+                    const index = allProducts.findIndex(p => p.id == editingId);
+                    if (index !== -1) allProducts[index] = data;
+                } else {
+                    allProducts.push(data);
+                }
+                alert(editingId ? '✅ Producto actualizado' : '✅ Producto creado');
+                showViewProducts();
+            } catch (err) {
+                alert(`❌ ${err.message}`);
+                console.error('Error:', err);
+            }
+        });
+
+        // ✅ Eventos
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProducts();
+
+            document.getElementById('menuAddProduct')?.addEventListener('click', showAddProductForm);
+            document.getElementById('menuViewProducts')?.addEventListener('click', showViewProducts);
+            document.getElementById('btnViewProducts')?.addEventListener('click', showViewProducts);
+
+            document.getElementById('userBtn')?.addEventListener('click', function(e) {
+                e.stopPropagation();
+                document.getElementById('userDropdown').classList.toggle('active');
+            });
+            document.addEventListener('click', () => {
+                document.getElementById('userDropdown').classList.remove('active');
+            });
+            document.getElementById('logoutBtn')?.addEventListener('click', logout);
+        });
+
+        function logout() {
+            if (confirm('¿Desea cerrar sesión?')) {
+                localStorage.clear();
+                window.location.href = 'login.html';
+            }
+        }
+    </script>
+</body>
+</html>

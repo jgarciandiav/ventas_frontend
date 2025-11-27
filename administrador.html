@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiTiendas - Administrador</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Favicon genérico (evita 404) -->
+    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAP//AP///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=">
+</head>
+<body class="dashboard-page">
+    <div class="sidebar">
+        <div class="logo">
+            <h1>MultiTiendas</h1>
+            <p>Sistema de gestión</p>
+        </div>
+        
+        <div class="menu-item" onclick="toggleSubmenu('submenu1')">
+            Electrodomésticos y Artículos del hogar
+        </div>
+        <div class="submenu" id="submenu1">
+            <div class="submenu-item" onclick="filterProducts('electrodomesticos')">Electrodomésticos</div>
+            <div class="submenu-item" onclick="filterProducts('articulos-hogar')">Artículos de hogar</div>
+        </div>
+
+        <div class="menu-item" onclick="toggleSubmenu('submenu2')">
+            Dulces y Regalos
+        </div>
+        <div class="submenu" id="submenu2">
+            <div class="submenu-item" onclick="filterProducts('dulces')">Dulces</div>
+            <div class="submenu-item" onclick="filterProducts('confituras')">Confituras</div>
+            <div class="submenu-item" onclick="filterProducts('regalos')">Regalos</div>
+        </div>
+
+        <div class="menu-item" onclick="toggleSubmenu('submenu3')">
+            Juguetes
+        </div>
+        <div class="submenu" id="submenu3">
+            <div class="submenu-item" onclick="filterProducts('juguetes')">Juguetes</div>
+        </div>
+
+        <div class="menu-item" onclick="showWarehouseProducts()">
+            Productos del Almacenero
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="top-bar">
+            <div class="top-bar-left">
+                <select class="category-dropdown" id="categoryDropdown" onchange="filterProductsFromDropdown(this.value)" aria-label="Filtrar productos por categoría">
+                    <option value="">Todos los productos</option>
+                    <option value="electrodomesticos">Electrodomésticos</option>
+                    <option value="articulos-hogar">Artículos de hogar</option>
+                    <option value="dulces">Dulces</option>
+                    <option value="confituras">Confituras</option>
+                    <option value="regalos">Regalos</option>
+                    <option value="juguetes">Juguetes</option>
+                </select>
+            </div>
+            
+            <div class="top-bar-right">
+                <div class="user-dropdown">
+                    <button class="top-btn" id="userBtn">
+                        👤 <span id="userInfo">Administrador</span>
+                    </button>
+                    <div class="dropdown-menu" id="userDropdown">
+                        <div class="dropdown-item" onclick="logout()">🚪 Cerrar Sesión</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <div id="productsSection">
+                <h3 class="category-title" id="categoryTitle">Todos los Productos</h3>
+                <div class="products-grid" id="productsGrid"></div>
+            </div>
+
+            <div id="warehouseSection">
+                <h3 class="category-title">Productos en Almacén</h3>
+                <div class="products-grid" id="warehouseProductsGrid"></div>
+            </div>
+        </div>
+
+        <div class="decorative-circles">
+            <div class="circle circle1"></div>
+            <div class="circle circle2"></div>
+            <div class="circle circle3"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // ✅ Verificación de sesión
+        const token = localStorage.getItem('auth_token');
+        const rol = localStorage.getItem('rol');
+        const username = localStorage.getItem('username');
+
+        if (!token || !rol || rol !== 'admin') {
+            alert('Acceso denegado. Inicia sesión como administrador.');
+            window.location.href = 'login.html';
+        }
+        document.getElementById('userInfo').textContent = username || 'Administrador';
+
+        // ✅ Solo allUsers (allProducts ya está en script.js)
+        let allUsers = [];
+
+        // ✅ Cargar datos al iniciar
+        async function loadDashboard() {
+            try {
+                // Cargar productos (usamos allProducts de script.js)
+                await loadProductsFromAPI();
+                
+                // Cargar usuarios
+                const res = await fetch('http://127.0.0.1:8000/api/users/', {
+                    headers: { 'Authorization': `Token ${token}` }
+                });
+                if (!res.ok) throw new Error(await res.text());
+                allUsers = await res.json();
+
+                // Mostrar productos por defecto
+                filterProducts('');
+            } catch (err) {
+                alert(`❌ Error: ${err.message}`);
+                console.error(err);
+            }
+        }
+
+        // ✅ Filtrar productos (reutiliza allProducts de script.js)
+        function filterProducts(category) {
+            document.getElementById('productsSection').style.display = 'block';
+            document.getElementById('warehouseSection').style.display = 'none';
+            
+            const grid = document.getElementById('productsGrid');
+            const title = document.getElementById('categoryTitle');
+            const dropdown = document.getElementById('categoryDropdown');
+            
+            const names = { 
+                electrodomesticos: 'Electrodomésticos', 
+                'articulos-hogar': 'Artículos del Hogar', 
+                dulces: 'Dulces', 
+                confituras: 'Confituras', 
+                regalos: 'Regalos', 
+                juguetes: 'Juguetes' 
+            };
+            if (category) dropdown.value = category;
+            title.textContent = names[category] || 'Todos los Productos';
+
+            // ✅ Usa allProducts (global de script.js)
+            const filtered = category 
+                ? allProducts.filter(p => p.tipo === category) 
+                : allProducts;
+
+            grid.innerHTML = filtered.map(p => `
+                <div class="product-card">
+                    <img src="${p.imagen || 'images/default.jpg'}" 
+                         alt="${p.nombre}" class="product-image"
+                         onerror="this.src='images/default.jpg'">
+                    <div class="product-info">
+                        <div class="product-name">${p.nombre}</div>
+                        <div class="product-price">S/ ${p.precio_unitario.toFixed(2)}</div>
+                        <div class="product-stock ${p.stock < 5 ? 'low' : ''}">Stock: ${p.stock}</div>
+                        <button class="buy-btn small" onclick="editPrice(${p.id}, '${p.nombre}', ${p.precio_unitario})">💰 Editar Precio</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ✅ Editar precio
+        function editPrice(productId, name, currentPrice) {
+            const newPrice = prompt(`Nuevo precio para "${name}"\nActual: S/ ${currentPrice.toFixed(2)}`, currentPrice);
+            if (newPrice === null) return;
+            const priceNum = parseFloat(newPrice);
+            if (isNaN(priceNum) || priceNum <= 0) return alert('Precio inválido');
+
+            fetch(`http://127.0.0.1:8000/api/almacen/${productId}/update-precio/`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Token ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ precio_unitario: priceNum })
+            })
+            .then(r => r.json())
+            .then(() => {
+                alert('✅ Precio actualizado');
+                // ✅ Actualizar allProducts global
+                const product = allProducts.find(p => p.id === productId);
+                if (product) product.precio_unitario = priceNum;
+                filterProducts(document.getElementById('categoryDropdown').value);
+            })
+            .catch(err => {
+                alert(`❌ Error: ${err.message}`);
+                console.error(err);
+            });
+        }
+
+        // ✅ Mostrar productos del almacén
+        function showWarehouseProducts() {
+            document.getElementById('productsSection').style.display = 'none';
+            document.getElementById('warehouseSection').style.display = 'block';
+            
+            const grid = document.getElementById('warehouseProductsGrid');
+            grid.innerHTML = allProducts.map(p => `
+                <div class="product-card">
+                    <img src="${p.imagen || 'images/default.jpg'}" 
+                         alt="${p.nombre}" class="product-image"
+                         onerror="this.src='images/default.jpg'">
+                    <div class="product-info">
+                        <div class="product-name">${p.nombre}</div>
+                        <div class="product-price">Precio: S/ ${p.precio_unitario.toFixed(2)}</div>
+                        <div class="product-stock ${p.stock < 5 ? 'low' : ''}">Stock: ${p.stock}</div>
+                        <div class="product-type">Tipo: ${p.tipo}</div>
+                        ${p.fecha_vencimiento ? 
+                            `<div class="product-expiry">Vence: ${new Date(p.fecha_vencimiento).toLocaleDateString()}</div>` : 
+                            ''
+                        }
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ✅ Gestión de usuarios
+ // ✅ Gestión de usuarios (mejorada)
+    function showUserManagement() {
+        document.getElementById('productsSection').style.display = 'none';
+        document.getElementById('warehouseSection').style.display = 'none';
+        document.querySelector('.content-area').innerHTML = `
+            <div id="userManagementSection">
+                <h3 class="category-title">👥 Gestión de Usuarios</h3>
+                
+                <!-- Formulario de registro de staff -->
+                <div class="product-card" style="margin-bottom: 20px;">
+                    <div class="product-info">
+                        <h4>📝 Registrar Nuevo Usuario (Staff)</h4>
+                        <div class="form-group" style="margin: 10px 0;">
+                            <label>Usuario</label>
+                            <input type="text" id="newUsername" placeholder="Nombre de usuario" required>
+                        </div>
+                        <div class="form-group" style="margin: 10px 0;">
+                            <label>Email</label>
+                            <input type="email" id="newEmail" placeholder="correo@ejemplo.com" required>
+                        </div>
+                        <div class="form-group" style="margin: 10px 0;">
+                            <label>Contraseña</label>
+                            <input type="password" id="newPassword" placeholder="Contraseña (mín. 6 caracteres)" required minlength="6">
+                        </div>
+                        <div class="form-group" style="margin: 10px 0;">
+                            <label>Rol</label>
+                            <select id="newRol" required>
+                                <option value="">Seleccione un rol</option>
+                                <option value="admin">Administrador</option>
+                                <option value="almacenero">Almacenero</option>
+                            </select>
+                        </div>
+                        <button class="buy-btn" onclick="registerStaff()" style="width: 100%; margin-top: 10px;">
+                            ✅ Registrar Usuario
+                        </button>
+                        <div class="error-message" id="staffError" style="margin-top: 10px; display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- Lista de usuarios -->
+                <button class="buy-btn" onclick="loadDashboard()">← Volver</button>
+                <div class="products-grid" id="usersGrid"></div>
+            </div>
+        `;
+        displayUsers();
+    }
+
+    function displayUsers() {
+        const grid = document.getElementById('usersGrid');
+        const roles = { admin: 'Administrador', almacenero: 'Almacenero', usuario: 'Cliente' };
+        grid.innerHTML = allUsers.map(u => `
+            <div class="product-card">
+                <div class="product-info">
+                    <div class="product-name">👤 ${u.username} ${u.is_active ? '' : '(🔒 inactivo)'}</div>
+                    <div class="product-category">Email: ${u.email || 'N/A'}</div>
+                    <div class="product-category">Rol: ${roles[u.rol] || u.rol}</div>
+                    <select onchange="changeRole(${u.id}, this.value)" style="width:100%; margin:5px 0;">
+                        <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Administrador</option>
+                        <option value="almacenero" ${u.rol === 'almacenero' ? 'selected' : ''}>Almacenero</option>
+                        <option value="usuario" ${u.rol === 'usuario' ? 'selected' : ''}>Cliente</option>
+                    </select>
+                    <button class="buy-btn small ${u.is_active ? 'secondary' : ''}" 
+                            onclick="toggleStatus(${u.id}, ${u.is_active})">
+                        ${u.is_active ? '🔒 Desactivar' : '🔓 Activar'}
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // ✅ Registrar staff (admin/almacenero)
+    async function registerStaff() {
+        const username = document.getElementById('newUsername').value.trim();
+        const email = document.getElementById('newEmail').value.trim();
+        const password = document.getElementById('newPassword').value;
+        const rol = document.getElementById('newRol').value;
+        const errorEl = document.getElementById('staffError');
+
+        if (!username || !email || !password || !rol) {
+            showError('Todos los campos son requeridos', errorEl);
+            return;
+        }
+
+        if (password.length < 6) {
+            showError('La contraseña debe tener al menos 6 caracteres', errorEl);
+            return;
+        }
+
+        if (!['admin', 'almacenero'].includes(rol)) {
+            showError('Rol inválido. Solo admin o almacenero.', errorEl);
+            return;
+        }
+
+        try {
+            const res = await fetch('http://127.0.0.1:8000/api/register-staff/', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Token ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, email, password, rol })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                alert('✅ Usuario registrado exitosamente');
+                // Actualizar lista
+                allUsers.push(data);
+                displayUsers();
+                // Limpiar formulario
+                document.getElementById('newUsername').value = '';
+                document.getElementById('newEmail').value = '';
+                document.getElementById('newPassword').value = '';
+                document.getElementById('newRol').value = '';
+                errorEl.style.display = 'none';
+            } else {
+                throw new Error(data.error || data.detail || 'Error desconocido');
+            }
+        } catch (err) {
+            showError(err.message, errorEl);
+            console.error('Error al registrar staff:', err);
+        }
+    }
+
+    function showError(message, element) {
+        element.textContent = message;
+        element.style.display = 'block';
+        setTimeout(() => {
+            element.style.display = 'none';
+        }, 5000);
+    }
+
+
+        async function changeRole(userId, newRole) {
+            if (!confirm('¿Cambiar rol?')) return;
+            try {
+                const res = await fetch(`http://127.0.0.1:8000/api/users/${userId}/`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Token ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ rol: newRole })
+                });
+                if (!res.ok) throw new Error(await res.text());
+                const user = allUsers.find(u => u.id === userId);
+                if (user) user.rol = newRole;
+                displayUsers();
+                alert('✅ Rol actualizado');
+            } catch (err) {
+                alert(`❌ Error: ${err.message}`);
+            }
+        }
+
+        async function toggleStatus(userId, wasActive) {
+            const newStatus = !wasActive;
+            if (!confirm(`¿${newStatus ? 'Activar' : 'Desactivar'}?`)) return;
+            try {
+                const res = await fetch(`http://127.0.0.1:8000/api/users/${userId}/`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Token ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ is_active: newStatus })
+                });
+                if (!res.ok) throw new Error(await res.text());
+                const user = allUsers.find(u => u.id === userId);
+                if (user) user.is_active = newStatus;
+                displayUsers();
+                alert(`✅ ${newStatus ? 'Activado' : 'Desactivado'}`);
+            } catch (err) {
+                alert(`❌ Error: ${err.message}`);
+            }
+        }
+
+        // ✅ Eventos
+        function filterProductsFromDropdown(value) {
+            filterProducts(value);
+        }
+
+        document.getElementById('userBtn').addEventListener('click', function(e) {
+            e.stopPropagation();
+            document.getElementById('userDropdown').classList.toggle('active');
+        });
+
+        document.addEventListener('click', function() {
+            document.getElementById('userDropdown').classList.remove('active');
+        });
+
+        function logout() {
+            if (confirm('¿Desea cerrar sesión?')) {
+                localStorage.clear();
+                window.location.href = 'login.html';
+            }
+        }
+
+        // ✅ Añadir botón gestión usuarios + iniciar
+        window.addEventListener('load', () => {
+            // Añadir botón dinámicamente
+            const sidebar = document.querySelector('.sidebar');
+            const lastItem = Array.from(sidebar.children).find(el => 
+                el.textContent?.includes('Productos del Almacenero')
+            );
+            if (lastItem) {
+                const btn = document.createElement('div');
+                btn.className = 'menu-item';
+                btn.textContent = '👥 Gestión de Usuarios';
+                btn.onclick = showUserManagement;
+                lastItem.after(btn);
+            }
+            loadDashboard();
+        });
+    </script>
+</body>
+</html>

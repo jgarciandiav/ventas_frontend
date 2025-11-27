@@ -6,6 +6,16 @@
     <title>MultiTiendas - Almacenero</title>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" href="image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAP//AP///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=">
+    <style>
+        /* Estilos para previsualización de imagen */
+        #imagePreview img {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-top: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+    </style>
 </head>
 <body class="dashboard-page">
     <div class="sidebar">
@@ -48,15 +58,15 @@
 
             <div id="addProductSection" class="hidden">
                 <h3 class="category-title">Agregar/Actualizar Producto</h3>
-                <form id="productForm" class="product-form">
+                <form id="productForm" class="product-form" enctype="multipart/form-data">
                     <div class="form-group">                        
                         <label for="productName">Nombre del Producto</label>
-                        <input type="text" id="productName" placeholder="Ej: Arroz 1kg" required>
+                        <input type="text" id="productName" name="nombreproducto" placeholder="Ej: Arroz 1kg" required>
                     </div>
                     
                     <div class="form-group">
                         <label for="productType">Tipo de Producto</label>
-                        <select id="productType" required>
+                        <select id="productType" name="tipoproducto" required>
                             <option value="">Seleccione un tipo</option>
                             <option value="electrodomesticos">Electrodomésticos</option>
                             <option value="articulos-hogar">Artículos de hogar</option>
@@ -70,22 +80,23 @@
                     
                     <div class="form-group">
                         <label for="productCategory">Categoría</label>
-                        <input type="text" id="productCategory" placeholder="Ej: Granos, Lácteos, Limpieza" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="productPrice">Precio Unitario (S/)</label>
-                        <input type="number" id="productPrice" step="0.01" min="0.01" placeholder="Ej: 5.50" required>
+                        <input type="text" id="productCategory" name="categoria" placeholder="Ej: Granos, Lácteos" required>
                     </div>
                     
                     <div class="form-group">
                         <label for="productStock">Stock Inicial</label>
-                        <input type="number" id="productStock" min="1" placeholder="Ej: 10" required>
+                        <input type="number" id="productStock" name="stock" min="1" placeholder="Ej: 10" required>
                     </div>
                     
                     <div class="form-group">
                         <label for="productExpiryDate">Fecha de Vencimiento</label>
-                        <input type="date" id="productExpiryDate" required>
+                        <input type="date" id="productExpiryDate" name="fechavencimiento" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="productImage">Imagen del Producto (opcional)</label>
+                        <input type="file" id="productImage" name="imagen" accept="image/*">
+                        <div id="imagePreview"></div>
                     </div>
                     
                     <button type="submit" class="buy-btn">✅ Guardar Producto</button>
@@ -121,7 +132,18 @@
         }
         document.getElementById('userInfo').textContent = username || 'Almacenero';
 
-        // ❌ NO se declara allProducts aquí
+        // ✅ Previsualización de imagen
+        document.getElementById('productImage')?.addEventListener('change', function(e) {
+            const preview = document.getElementById('imagePreview');
+            preview.innerHTML = '';
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.innerHTML = `<img src="${e.target.result}" alt="Previsualización">`;
+                };
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
 
         // ✅ Funciones
         function showAddProductForm() {
@@ -130,6 +152,7 @@
             document.getElementById('viewProductsSection').classList.add('hidden');
             document.getElementById('pageTitle').textContent = 'Agregar/Actualizar Producto';
             document.getElementById('productForm').reset();
+            document.getElementById('imagePreview').innerHTML = '';
             delete document.getElementById('productForm').dataset.editingId;
         }
 
@@ -163,6 +186,10 @@
                         <div class="product-name">${p.nombreproducto}</div>
                         <div class="product-category">Tipo: ${p.tipoproducto}</div>
                         <div class="product-category">Categoría: ${p.categoria}</div>
+                        ${p.imagen ? 
+                            `<img src="http://127.0.0.1:8000${p.imagen}" alt="${p.nombreproducto}" class="product-image" style="width:100%; height:150px; object-fit:cover; margin:10px 0;">` : 
+                            ''
+                        }
                         <div class="product-price">Precio: S/ ${parseFloat(p.precio).toFixed(2)}</div>
                         <div class="product-stock ${p.stock < 5 ? 'low' : ''}">Stock: ${p.stock}</div>
                         <div class="product-expiry">Vence: ${new Date(p.fechavencimiento).toLocaleDateString()}</div>
@@ -219,11 +246,11 @@
             document.getElementById('productName').value = product.nombreproducto;
             document.getElementById('productType').value = product.tipoproducto;
             document.getElementById('productCategory').value = product.categoria;
-            document.getElementById('productPrice').value = product.precio;
             document.getElementById('productStock').value = product.stock;
             if (product.fechavencimiento) {
                 document.getElementById('productExpiryDate').value = product.fechavencimiento.split('T')[0];
             }
+            // No prellenamos imagen (solo para crear)
 
             showAddProductForm();
             document.getElementById('pageTitle').textContent = `✏️ Editando: ${product.nombreproducto}`;
@@ -233,42 +260,50 @@
         document.getElementById('productForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
-            // ✅ Datos con nombres de TU MODELO
-            const formData = {
-                nombreproducto: document.getElementById('productName').value.trim(),
-                tipoproducto: document.getElementById('productType').value,
-                categoria: document.getElementById('productCategory').value.trim(),
-                precio: parseFloat(document.getElementById('productPrice').value),
-                stock: parseInt(document.getElementById('productStock').value),
-                fechavencimiento: document.getElementById('productExpiryDate').value
-            };
+            // ✅ FormData para subir imagen
+            const formData = new FormData(this);
 
-            // ✅ Validación estricta
-            if (!formData.nombreproducto) return alert('Nombre es obligatorio');
-            if (!formData.tipoproducto) return alert('Tipo es obligatorio');
-            if (!formData.categoria) return alert('Categoría es obligatoria');
-            if (isNaN(formData.precio) || formData.precio <= 0) return alert('Precio debe ser > 0');
-            if (isNaN(formData.stock) || formData.stock < 1) return alert('Stock debe ser ≥ 1');
-            if (!formData.fechavencimiento) return alert('Fecha de vencimiento es obligatoria');
+            // ✅ Depuración segura
+            console.log('Campos enviados:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`  ${key}:`, value);
+            }
+
+            // ✅ Validación
+            if (!formData.get('nombreproducto')) return alert('Nombre es obligatorio');
+            if (!formData.get('tipoproducto')) return alert('Tipo es obligatorio');
+            if (!formData.get('categoria')) return alert('Categoría es obligatoria');
+            if (!formData.get('stock') || parseInt(formData.get('stock')) < 1) return alert('Stock debe ser ≥ 1');
+            if (!formData.get('fechavencimiento')) return alert('Fecha de vencimiento es obligatoria');
 
             try {
                 const editingId = this.dataset.editingId;
                 const url = editingId 
                     ? `http://127.0.0.1:8000/api/almacen/${editingId}/`
-                    : 'http://127.0.0.1:8000/api/almacen/create/';  // ← URL corregida
+                    : 'http://127.0.0.1:8000/api/almacen/create/';
 
                 const method = editingId ? 'PUT' : 'POST';
 
+                // ✅ Sin Content-Type (deja que el navegador lo gestione)
                 const res = await fetch(url, {
                     method,
                     headers: {
-                        'Authorization': `Token ${token}`,
-                        'Content-Type': 'application/json'
+                        'Authorization': `Token ${token}`
                     },
-                    body: JSON.stringify(formData)
+                    body: formData
                 });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.detail || 'Error al crear');
+
+                let data;
+                try {
+                    data = await res.json();
+                } catch (jsonErr) {
+                    console.error('Respuesta no es JSON:', await res.text());
+                    throw new Error('Respuesta del servidor no es JSON');
+                }
+
+                if (!res.ok) {
+                    throw new Error(data.error || data.detail || `HTTP ${res.status}`);
+                }
 
                 if (editingId) {
                     const index = allProducts.findIndex(p => p.id == editingId);
@@ -279,8 +314,8 @@
                 alert(editingId ? '✅ Producto actualizado' : '✅ Producto creado');
                 showViewProducts();
             } catch (err) {
-                alert(`❌ ${err.message}`);
                 console.error('Error:', err);
+                alert(`❌ ${err.message}`);
             }
         });
 

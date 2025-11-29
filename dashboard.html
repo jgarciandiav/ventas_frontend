@@ -5,7 +5,110 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MultiTiendas - Dashboard</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAP//AP///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=">
+    <link rel="icon" type="image/jpg" href="images/logo.jpg">
+    <style>
+        /* ✅ Estilos adicionales para modal de cantidad */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 30px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+        .modal h3 {
+            color: #00b4db;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin: 20px 0;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        #quantityInput {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .modal-buttons button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .modal-buttons .primary {
+            background: linear-gradient(135deg, #00d4ff 0%, #00b4db 100%);
+            color: white;
+        }
+        .modal-buttons .secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+        .modal-buttons button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .modal-buttons .secondary:hover {
+            background: #e0e0e0;
+        }
+        .modal-buttons .primary:hover {
+            background: linear-gradient(135deg, #00c0ff 0%, #00a0c5 100%);
+        }
+        
+        /* ✅ Estilos para carrito mejorado */
+        .cart-item-subtotal {
+            font-weight: bold;
+            color: #e74c3c;
+            margin-top: 4px;
+            font-size: 14px;
+        }
+        .product-stock.low {
+            animation: pulse 1s infinite;
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .buy-btn.disabled {
+            background: #cccccc !important;
+            cursor: not-allowed !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+    </style>
 </head>
 <body class="dashboard-page">
     <div class="sidebar">
@@ -106,9 +209,24 @@
         </div>
     </div>
 
+    <!-- ✅ Modal para seleccionar cantidad -->
+    <div id="quantityModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="modalTitle">¿Cuántas unidades deseas comprar?</h3>
+            <div class="form-group">
+                <label>Stock disponible: <span id="modalStock">0</span></label>
+                <input type="number" id="quantityInput" min="1" value="1">
+            </div>
+            <div class="modal-buttons">
+                <button id="cancelButton" class="secondary">Cancelar</button>
+                <button id="confirmButton" class="primary">Agregar al carrito</button>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
     <script>
-        // ✅ Verificación de sesión (usa variables de script.js)
+        // ✅ Verificación de sesión
         const token = localStorage.getItem('auth_token');
         const rol = localStorage.getItem('rol');
         const username = localStorage.getItem('username');
@@ -118,6 +236,33 @@
             window.location.href = 'login.html';
         }
         document.getElementById('userInfo').textContent = username || 'Cliente';
+
+        // ✅ Variables globales para el modal de cantidad
+        let currentProduct = null;
+
+        // ✅ Funciones del modal de cantidad
+        function openQuantityModal(product) {
+            currentProduct = product;
+            document.getElementById('modalTitle').textContent = `¿Cuántas unidades de "${product.nombreproducto}"?`;
+            document.getElementById('modalStock').textContent = product.stock;
+            document.getElementById('quantityInput').value = '1';
+            document.getElementById('quantityInput').max = product.stock;
+            document.getElementById('quantityModal').classList.remove('hidden');
+        }
+
+        function closeQuantityModal() {
+            document.getElementById('quantityModal').classList.add('hidden');
+            currentProduct = null;
+        }
+
+        document.getElementById('cancelButton').addEventListener('click', closeQuantityModal);
+        document.getElementById('confirmButton').addEventListener('click', function() {
+            const quantity = parseInt(document.getElementById('quantityInput').value);
+            if (quantity > 0 && currentProduct) {
+                addToCartWithQuantity(currentProduct, quantity);
+            }
+            closeQuantityModal();
+        });
 
         // ✅ Eventos
         document.getElementById('userBtn').addEventListener('click', function(e) {
@@ -140,9 +285,110 @@
             filterProducts(value);
         }
 
-        // ✅ Iniciar
-        window.addEventListener('load', () => {
-            loadProductsFromAPI(); // ✅ Usa función de script.js
+        // ✅ Eventos del modal de cantidad
+        document.getElementById('quantityInput').addEventListener('input', function(e) {
+            let value = parseInt(e.target.value) || 1;
+            const max = currentProduct ? currentProduct.stock : 1;
+            if (value > max) value = max;
+            if (value < 1) value = 1;
+            e.target.value = value;
+        });
+
+        // ✅ Función para añadir al carrito con cantidad específica
+        function addToCartWithQuantity(product, quantity) {
+            // Validar stock
+            if (quantity > product.stock) {
+                alert(`❌ Stock insuficiente. Solo quedan ${product.stock} unidades disponibles.`);
+                return;
+            }
+
+            // Crear item con cantidad
+            const item = {
+                id: product.id,
+                name: product.nombreproducto,
+                price: `S/ ${parseFloat(product.precio).toFixed(2)}`,
+                image: product.imagen || 'images/default.jpg',
+                stock: product.stock,
+                precio_unitario: parseFloat(product.precio),
+                cantidad: quantity,
+                subtotal: parseFloat(product.precio) * quantity
+            };
+
+            // Restar stock visualmente
+            product.stock -= quantity;
+            
+            // Añadir al carrito
+            cart.push(item);
+            saveCart();
+            updateCartDisplay();
+            alert(`✅ ${item.cantidad} ${item.cantidad === 1 ? 'unidad' : 'unidades'} de "${item.name}" agregadas al carrito`);
+            
+            // Actualizar vista de productos
+            filterProducts(document.getElementById('categoryDropdown').value);
+        }
+
+        // ✅ Renderizar productos con botón actualizado
+        function renderProducts(products) {
+            const productsGrid = document.getElementById('productsGrid');
+            const categoryTitle = document.getElementById('categoryTitle');
+            const dropdown = document.getElementById('categoryDropdown');
+            
+            const categoryNames = {
+                'electrodomesticos': 'Electrodomésticos',
+                'articulos-hogar': 'Artículos del Hogar',
+                'dulces': 'Dulces',
+                'confituras': 'Confituras',
+                'regalos': 'Regalos',
+                'juguetes': 'Juguetes'
+            };
+
+            if (products.length === 0) {
+                productsGrid.innerHTML = '<div class="no-products">No hay productos disponibles en esta categoría</div>';
+                return;
+            }
+
+            productsGrid.innerHTML = products.map(product => {
+                const price = product.precio ? parseFloat(product.precio) : 0;
+                const imageUrl = product.imagen 
+                    ? (product.imagen.startsWith('http') ? product.imagen : `http://127.0.0.1:8000${product.imagen}`)
+                    : 'images/default.jpg';
+                    
+                return `
+                <div class="product-card">
+                    <img src="${imageUrl}" alt="${product.nombreproducto}" class="product-image"
+                         onerror="this.src='images/default.jpg'">
+                    <div class="product-info">
+                        <div class="product-name">${product.nombreproducto}</div>
+                        <div class="product-price">S/ ${price.toFixed(2)}</div>
+                        <div class="product-stock ${product.stock < 5 ? 'low' : ''}">Stock: ${product.stock}</div>
+                        ${product.stock > 0 
+                            ? `<button class="buy-btn" onclick="openQuantityModal(${JSON.stringify(product).replace(/"/g, '&quot;')})">🛒 Comprar</button>`
+                            : `<button class="buy-btn disabled" disabled>Agotado</button>`
+                        }
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // ✅ Inicializar
+        window.addEventListener('load', function() {
+            loadProductsFromAPI();
+            updateCartDisplay();
+        });
+
+        // ✅ Cerrar modal al hacer clic fuera
+        document.getElementById('quantityModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeQuantityModal();
+            }
+        });
+
+        // ✅ Cerrar modal con Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeQuantityModal();
+            }
         });
     </script>
 </body>

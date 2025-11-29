@@ -5,8 +5,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MultiTiendas - Administrador</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Favicon genérico (evita 404) -->
-    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAP//AP///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=">
+    <link rel="icon" type="image/jpg" href="images/logo.jpg">
+    <style>
+        /* Estilos adicionales para mejorar la experiencia */
+        .no-products {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 18px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            margin: 20px;
+            font-style: italic;
+        }
+        
+        .product-price.low {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+        
+        .buy-btn.small {
+            padding: 6px 10px;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        .product-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .product-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .price-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: inline-block;
+            margin-top: 4px;
+        }
+        
+        .product-image {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            background: #f0f0f0;
+            display: block;
+        }
+
+        .product-image[src="images/default.jpg"] {
+            height: 100px;
+            object-fit: contain;
+        }
+        
+        /* Estilos para el datatable */
+        .datatable-container {
+            width: 100%;
+            overflow-x: auto;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 10px;
+        }
+
+        .datatable {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+
+        .datatable th, .datatable td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .datatable th {
+            background-color: #00b4db;
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        .datatable tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        .datatable tfoot td {
+            font-weight: bold;
+            background-color: #e3f2fd;
+            border-top: 2px solid #00b4db;
+        }
+
+        .highlight-row {
+            background-color: #e8f5e9 !important;
+            animation: highlight 2s ease;
+        }
+
+        @keyframes highlight {
+            0% { background-color: #e8f5e9; }
+            100% { background-color: transparent; }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
 </head>
 <body class="dashboard-page">
     <div class="sidebar">
@@ -42,6 +151,10 @@
         <div class="menu-item" onclick="showWarehouseProducts()">
             Productos del Almacenero
         </div>
+        
+        <div class="menu-item" onclick="showSoldProducts()">
+            Ver productos vendidos
+        </div>
     </div>
 
     <div class="main-content">
@@ -64,21 +177,61 @@
                         👤 <span id="userInfo">Administrador</span>
                     </button>
                     <div class="dropdown-menu" id="userDropdown">
-                        <div class="dropdown-item" onclick="logout()">🚪 Cerrar Sesión</div>
+                        <div class="dropdown-item" id="logoutBtn">🚪 Cerrar Sesión</div>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="content-area">
-            <div id="productsSection">
+            <div id="productsSection" style="display: none;">
                 <h3 class="category-title" id="categoryTitle">Todos los Productos</h3>
                 <div class="products-grid" id="productsGrid"></div>
             </div>
 
-            <div id="warehouseSection">
-                <h3 class="category-title">Productos en Almacén</h3>
+            <div id="warehouseSection" class="hidden">
+                <h3 class="category-title">Productos del Almacenero</h3>
                 <div class="products-grid" id="warehouseProductsGrid"></div>
+            </div>
+            
+            <div id="soldProductsSection" class="hidden">
+                <h3 class="category-title">📊 Productos Vendidos - Resumen</h3>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                    <div>
+                        <label for="dateFilter">Filtrar por fecha: </label>
+                        <input type="date" id="dateFilter">
+                        <button class="buy-btn" onclick="filterSoldProductsByDate()" style="margin-left: 10px;">Filtrar</button>
+                        <button class="buy-btn secondary" onclick="resetDateFilter()" style="margin-left: 10px;">Limpiar</button>
+                    </div>
+                    <button class="buy-btn" onclick="exportToCSV()" style="margin-left: 10px;">📥 Exportar a CSV</button>
+                </div>
+                <div class="datatable-container">
+                    <table class="datatable" id="soldProductsTable">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Categoría</th>
+                                <th>Tipo</th>
+                                <th>Cantidad Total</th>
+                                <th>Precio Unitario</th>
+                                <th>Importe Total</th>
+                                <th>Última Venta</th>
+                            </tr>
+                        </thead>
+                        <tbody id="soldProductsBody">
+                            <!-- Los datos se cargarán dinámicamente -->
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3"><strong>TOTALES:</strong></td>
+                                <td id="totalQuantity">0</td>
+                                <td></td>
+                                <td id="totalAmount">S/ 0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -105,8 +258,20 @@
         // ✅ Solo allUsers (allProducts ya está en script.js)
         let allUsers = [];
 
+        // ✅ Función para ocultar todas las secciones
+        function hideAllSections() {
+            document.getElementById('productsSection').style.display = 'none';
+            document.getElementById('warehouseSection').style.display = 'none';
+            document.getElementById('soldProductsSection').classList.add('hidden');
+            document.getElementById('userManagementSection')?.parentElement?.classList.add('hidden');
+        }
+
         // ✅ Cargar datos al iniciar
         async function loadDashboard() {
+            hideAllSections();
+            document.getElementById('productsSection').style.display = 'block';
+            document.getElementById('categoryTitle').textContent = 'Todos los Productos';
+            
             try {
                 // Cargar productos (usamos allProducts de script.js)
                 await loadProductsFromAPI();
@@ -128,8 +293,8 @@
 
         // ✅ Filtrar productos (reutiliza allProducts de script.js)
         function filterProducts(category) {
+            hideAllSections();
             document.getElementById('productsSection').style.display = 'block';
-            document.getElementById('warehouseSection').style.display = 'none';
             
             const grid = document.getElementById('productsGrid');
             const title = document.getElementById('categoryTitle');
@@ -146,24 +311,43 @@
             if (category) dropdown.value = category;
             title.textContent = names[category] || 'Todos los Productos';
 
-            // ✅ Usa allProducts (global de script.js)
-            const filtered = category 
-                ? allProducts.filter(p => p.tipo === category) 
-                : allProducts;
+            // ✅ Filtrar SOLO productos con precio válido (que se pueden vender)
+            let filtered = category 
+                ? allProducts.filter(p => 
+                    p.tipoproducto === category && 
+                    p.precio !== undefined && 
+                    p.precio !== null && 
+                    parseFloat(p.precio) > 0
+                ) 
+                : allProducts.filter(p => 
+                    p.precio !== undefined && 
+                    p.precio !== null && 
+                    parseFloat(p.precio) > 0
+                );
 
-            grid.innerHTML = filtered.map(p => `
+            // ✅ Manejar caso cuando no hay productos con precio
+            if (filtered.length === 0) {
+                grid.innerHTML = '<div class="no-products">No hay productos con precio para esta categoría</div>';
+                return;
+            }
+
+            // ✅ Renderizar productos con conversión segura de precios
+            grid.innerHTML = filtered.map(p => {
+                const price = p.precio !== undefined && p.precio !== null ? parseFloat(p.precio) : 0;
+                return `
                 <div class="product-card">
-                    <img src="${p.imagen || 'images/default.jpg'}" 
-                         alt="${p.nombre}" class="product-image"
+                    <img src="http://127.0.0.1:8000${p.imagen || '/media/default.jpg'}" 
+                         alt="${p.nombreproducto}" class="product-image"
                          onerror="this.src='images/default.jpg'">
                     <div class="product-info">
-                        <div class="product-name">${p.nombre}</div>
-                        <div class="product-price">S/ ${p.precio_unitario.toFixed(2)}</div>
+                        <div class="product-name">${p.nombreproducto}</div>
+                        <div class="product-price">Precio/ ${price.toFixed(2)}</div>
                         <div class="product-stock ${p.stock < 5 ? 'low' : ''}">Stock: ${p.stock}</div>
-                        <button class="buy-btn small" onclick="editPrice(${p.id}, '${p.nombre}', ${p.precio_unitario})">💰 Editar Precio</button>
+                        <button class="buy-btn small" onclick="editPrice(${p.id}, '${p.nombreproducto}', ${price})">💰 Editar Precio</button>
                     </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         // ✅ Editar precio
@@ -179,14 +363,14 @@
                     'Authorization': `Token ${token}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ precio_unitario: priceNum })
+                body: JSON.stringify({ precio: priceNum }) // ✅ Usa el campo correcto de tu modelo
             })
             .then(r => r.json())
             .then(() => {
                 alert('✅ Precio actualizado');
                 // ✅ Actualizar allProducts global
                 const product = allProducts.find(p => p.id === productId);
-                if (product) product.precio_unitario = priceNum;
+                if (product) product.precio = priceNum;
                 filterProducts(document.getElementById('categoryDropdown').value);
             })
             .catch(err => {
@@ -195,165 +379,383 @@
             });
         }
 
-        // ✅ Mostrar productos del almacén
+        // ✅ Mostrar productos del almacén (precio = 0)
         function showWarehouseProducts() {
-            document.getElementById('productsSection').style.display = 'none';
+            hideAllSections();
             document.getElementById('warehouseSection').style.display = 'block';
+            document.getElementById('warehouseSection').classList.remove('hidden');
+            document.getElementById('categoryTitle').textContent = 'Productos del Almacenero';
             
             const grid = document.getElementById('warehouseProductsGrid');
-            grid.innerHTML = allProducts.map(p => `
+            
+            // ✅ Mostrar SOLO productos con precio 0 (los que el almacenero agregó)
+            const warehouseProducts = allProducts.filter(p => 
+                p.precio !== undefined && 
+                p.precio !== null && 
+                parseFloat(p.precio) === 0
+            );
+
+            // ✅ Manejar caso cuando no hay productos sin precio
+            if (warehouseProducts.length === 0) {
+                grid.innerHTML = '<div class="no-products">No hay productos sin precio asignado</div>';
+                return;
+            }
+
+            // ✅ Renderizar productos con campos correctos de TU MODELO
+            grid.innerHTML = warehouseProducts.map(p => {
+                const price = p.precio !== undefined && p.precio !== null ? parseFloat(p.precio) : 0;
+                
+                return `
                 <div class="product-card">
-                    <img src="${p.imagen || 'images/default.jpg'}" 
-                         alt="${p.nombre}" class="product-image"
+                    <img src="http://127.0.0.1:8000${p.imagen || '/media/default.jpg'}" 
+                         alt="${p.nombreproducto}" class="product-image"
                          onerror="this.src='images/default.jpg'">
                     <div class="product-info">
-                        <div class="product-name">${p.nombre}</div>
-                        <div class="product-price">Precio: S/ ${p.precio_unitario.toFixed(2)}</div>
+                        <div class="product-name">${p.nombreproducto}</div>
+                        <div class="product-category">Tipo: ${p.tipoproducto}</div>
+                        <div class="product-category">Categoría: ${p.categoria}</div>
+                        <div class="product-price ${price === 0 ? 'low' : ''}">
+                            ${price === 0 ? '<span class="price-warning">⚠️ Sin precio asignado</span>' : `Precio: S/ ${price.toFixed(2)}`}
+                        </div>
                         <div class="product-stock ${p.stock < 5 ? 'low' : ''}">Stock: ${p.stock}</div>
-                        <div class="product-type">Tipo: ${p.tipo}</div>
-                        ${p.fecha_vencimiento ? 
-                            `<div class="product-expiry">Vence: ${new Date(p.fecha_vencimiento).toLocaleDateString()}</div>` : 
-                            ''
-                        }
+                        <div class="product-expiry">Vence: ${new Date(p.fechavencimiento).toLocaleDateString()}</div>
+                        ${price === 0 ? `
+                            <button class="buy-btn small" onclick="editPrice(${p.id}, '${p.nombreproducto}', ${price})">
+                                💰 Asignar Precio
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // ✅ Mostrar productos vendidos
+        function showSoldProducts() {
+            hideAllSections();
+            document.getElementById('soldProductsSection').classList.remove('hidden');
+            document.getElementById('categoryTitle').textContent = '📊 Productos Vendidos - Resumen';
+            
+            // Cargar todas las ventas
+            loadSoldProductsData();
+        }
+
+        // ✅ Cargar datos de productos vendidos
+        async function loadSoldProductsData(date = null) {
+            try {
+                // ✅ URL CORRECTA para listar ventas
+                let url = 'http://127.0.0.1:8000/api/ventas/list/';
+                if (date) {
+                    url += `?fecha=${date}`;
+                    document.getElementById('dateFilter').value = date;
+                }
+
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Token ${token}` }
+                });
+                
+                if (!res.ok) throw new Error(await res.text());
+                
+                const ventas = await res.json();
+                displaySoldProducts(ventas);
+            } catch (err) {
+                alert(`❌ Error al cargar ventas: ${err.message}`);
+                console.error(err);
+            }
+        }
+
+        // ✅ Filtrar por fecha
+        function filterSoldProductsByDate() {
+            const date = document.getElementById('dateFilter').value;
+            if (date) {
+                loadSoldProductsData(date);
+            } else {
+                loadSoldProductsData();
+            }
+        }
+
+        // ✅ Resetear filtro de fecha
+        function resetDateFilter() {
+            document.getElementById('dateFilter').value = '';
+            loadSoldProductsData();
+        }
+
+        // ✅ Mostrar los datos en la tabla
+        function displaySoldProducts(ventas) {
+            const tbody = document.getElementById('soldProductsBody');
+            const totalQuantityEl = document.getElementById('totalQuantity');
+            const totalAmountEl = document.getElementById('totalAmount');
+            
+            // Agrupar ventas por producto
+            const productsMap = {};
+            
+            ventas.forEach(venta => {
+                const productId = venta.producto;
+                const productName = venta.producto_nombre;
+                const categoria = venta.categoria || 'N/A';
+                const tipo = venta.tipoproducto || 'N/A';
+                const price = parseFloat(venta.precio_unitario || venta.precio_total / venta.cantidad);
+                const quantity = parseInt(venta.cantidad);
+                const importe = price * quantity;
+                const fecha = venta.fecha;
+                
+                if (!productsMap[productId]) {
+                    productsMap[productId] = {
+                        id: productId,
+                        nombre: productName,
+                        categoria: categoria,
+                        tipo: tipo,
+                        precio_unitario: price,
+                        cantidad_total: 0,
+                        importe_total: 0,
+                        ultima_venta: fecha
+                    };
+                }
+                
+                // Actualizar totales
+                productsMap[productId].cantidad_total += quantity;
+                productsMap[productId].importe_total += importe;
+                
+                // Actualizar última venta (la más reciente)
+                if (new Date(fecha) > new Date(productsMap[productId].ultima_venta)) {
+                    productsMap[productId].ultima_venta = fecha;
+                }
+            });
+            
+            // Convertir a array y ordenar por importe total (descendente)
+            const productsArray = Object.values(productsMap).sort((a, b) => b.importe_total - a.importe_total);
+            
+            // Calcular totales generales
+            let totalQuantity = 0;
+            let totalAmount = 0;
+            
+            productsArray.forEach(p => {
+                totalQuantity += p.cantidad_total;
+                totalAmount += p.importe_total;
+            });
+            
+            // Mostrar totales
+            totalQuantityEl.textContent = totalQuantity;
+            totalAmountEl.textContent = `S/ ${totalAmount.toFixed(2)}`;
+            
+            // Renderizar tabla
+            if (productsArray.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
+                            No hay productos vendidos ${document.getElementById('dateFilter').value ? 'en esta fecha' : ''}
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = productsArray.map(product => `
+                <tr class="highlight-row">
+                    <td><strong>${product.nombre}</strong></td>
+                    <td>${product.categoria}</td>
+                    <td>${product.tipo}</td>
+                    <td style="color: #00b4db; font-weight: bold;">${product.cantidad_total}</td>
+                    <td>S/ ${product.precio_unitario.toFixed(2)}</td>
+                    <td style="color: #e74c3c; font-weight: bold;">S/ ${product.importe_total.toFixed(2)}</td>
+                    <td>${new Date(product.ultima_venta).toLocaleDateString()}</td>
+                </tr>
+            `).join('');
+            
+            // Remover la clase de highlight después de 2 segundos
+            setTimeout(() => {
+                document.querySelectorAll('.highlight-row').forEach(row => {
+                    row.classList.remove('highlight-row');
+                });
+            }, 2000);
+        }
+
+        // ✅ Exportar a CSV
+        function exportToCSV() {
+            const table = document.getElementById('soldProductsTable');
+            const rows = table.querySelectorAll('tbody tr');
+            
+            if (rows.length === 0) {
+                alert('⚠️ No hay datos para exportar');
+                return;
+            }
+            
+            let csv = 'Producto,Categoría,Tipo,Cantidad Total,Precio Unitario,Importe Total,Última Venta\n';
+            
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                const rowData = [];
+                
+                cells.forEach((cell, index) => {
+                    if (index < 7) { // Solo las primeras 7 columnas
+                        let text = cell.textContent.trim();
+                        // Eliminar símbolos de moneda y formato
+                        text = text.replace('S/ ', '').replace(/,/g, '');
+                        rowData.push(`"${text}"`);
+                    }
+                });
+                
+                csv += rowData.join(',') + '\n';
+            });
+            
+            // Añadir totales
+            csv += '\n';
+            csv += '"TOTALES GENERALES:","","",';
+            csv += `"${document.getElementById('totalQuantity').textContent}"`;
+            csv += ',"",';
+            csv += `"${document.getElementById('totalAmount').textContent.replace('S/ ', '')}"`;
+            csv += ',""';
+            
+            // Crear enlace de descarga
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const date = new Date().toISOString().split('T')[0];
+            link.setAttribute('href', URL.createObjectURL(blob));
+            link.setAttribute('download', `ventas_resumen_${date}.csv`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            alert('✅ Datos exportados a CSV exitosamente');
+        }
+
+        // ✅ Gestión de usuarios
+        function showUserManagement() {
+            hideAllSections();
+            const contentArea = document.querySelector('.content-area');
+            if (!document.getElementById('userManagementSection')) {
+                contentArea.innerHTML = `
+                    <div id="userManagementSection">
+                        <h3 class="category-title">👥 Gestión de Usuarios</h3>
+                        
+                        <!-- Formulario de registro de staff -->
+                        <div class="product-card" style="margin-bottom: 20px;">
+                            <div class="product-info">
+                                <h4>📝 Registrar Nuevo Usuario (Staff)</h4>
+                                <div class="form-group" style="margin: 10px 0;">
+                                    <label>Usuario</label>
+                                    <input type="text" id="newUsername" placeholder="Nombre de usuario" required>
+                                </div>
+                                <div class="form-group" style="margin: 10px 0;">
+                                    <label>Email</label>
+                                    <input type="email" id="newEmail" placeholder="correo@ejemplo.com" required>
+                                </div>
+                                <div class="form-group" style="margin: 10px 0;">
+                                    <label>Contraseña</label>
+                                    <input type="password" id="newPassword" placeholder="Contraseña (mín. 6 caracteres)" required minlength="6">
+                                </div>
+                                <div class="form-group" style="margin: 10px 0;">
+                                    <label>Rol</label>
+                                    <select id="newRol" required>
+                                        <option value="">Seleccione un rol</option>
+                                        <option value="admin">Administrador</option>
+                                        <option value="almacenero">Almacenero</option>
+                                    </select>
+                                </div>
+                                <button class="buy-btn" onclick="registerStaff()" style="width: 100%; margin-top: 10px;">
+                                    ✅ Registrar Usuario
+                                </button>
+                                <div class="error-message" id="staffError" style="margin-top: 10px; display: none;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Lista de usuarios -->
+                        <button class="buy-btn" onclick="loadDashboard()">← Volver</button>
+                        <div class="products-grid" id="usersGrid"></div>
+                    </div>
+                `;
+            }
+            document.getElementById('userManagementSection').parentElement.classList.remove('hidden');
+            displayUsers();
+        }
+
+        function displayUsers() {
+            const grid = document.getElementById('usersGrid');
+            const roles = { admin: 'Administrador', almacenero: 'Almacenero', usuario: 'Cliente' };
+            grid.innerHTML = allUsers.map(u => `
+                <div class="product-card">
+                    <div class="product-info">
+                        <div class="product-name">👤 ${u.username} ${u.is_active ? '' : '(🔒 inactivo)'}</div>
+                        <div class="product-category">Email: ${u.email || 'N/A'}</div>
+                        <div class="product-category">Rol: ${roles[u.rol] || u.rol}</div>
+                        <select onchange="changeRole(${u.id}, this.value)" style="width:100%; margin:5px 0;">
+                            <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Administrador</option>
+                            <option value="almacenero" ${u.rol === 'almacenero' ? 'selected' : ''}>Almacenero</option>
+                            <option value="usuario" ${u.rol === 'usuario' ? 'selected' : ''}>Cliente</option>
+                        </select>
+                        <button class="buy-btn small ${u.is_active ? 'secondary' : ''}" 
+                                onclick="toggleStatus(${u.id}, ${u.is_active})">
+                            ${u.is_active ? '🔒 Desactivar' : '🔓 Activar'}
+                        </button>
                     </div>
                 </div>
             `).join('');
         }
 
-        // ✅ Gestión de usuarios
- // ✅ Gestión de usuarios (mejorada)
-    function showUserManagement() {
-        document.getElementById('productsSection').style.display = 'none';
-        document.getElementById('warehouseSection').style.display = 'none';
-        document.querySelector('.content-area').innerHTML = `
-            <div id="userManagementSection">
-                <h3 class="category-title">👥 Gestión de Usuarios</h3>
-                
-                <!-- Formulario de registro de staff -->
-                <div class="product-card" style="margin-bottom: 20px;">
-                    <div class="product-info">
-                        <h4>📝 Registrar Nuevo Usuario (Staff)</h4>
-                        <div class="form-group" style="margin: 10px 0;">
-                            <label>Usuario</label>
-                            <input type="text" id="newUsername" placeholder="Nombre de usuario" required>
-                        </div>
-                        <div class="form-group" style="margin: 10px 0;">
-                            <label>Email</label>
-                            <input type="email" id="newEmail" placeholder="correo@ejemplo.com" required>
-                        </div>
-                        <div class="form-group" style="margin: 10px 0;">
-                            <label>Contraseña</label>
-                            <input type="password" id="newPassword" placeholder="Contraseña (mín. 6 caracteres)" required minlength="6">
-                        </div>
-                        <div class="form-group" style="margin: 10px 0;">
-                            <label>Rol</label>
-                            <select id="newRol" required>
-                                <option value="">Seleccione un rol</option>
-                                <option value="admin">Administrador</option>
-                                <option value="almacenero">Almacenero</option>
-                            </select>
-                        </div>
-                        <button class="buy-btn" onclick="registerStaff()" style="width: 100%; margin-top: 10px;">
-                            ✅ Registrar Usuario
-                        </button>
-                        <div class="error-message" id="staffError" style="margin-top: 10px; display: none;"></div>
-                    </div>
-                </div>
+        // ✅ Registrar staff (admin/almacenero)
+        async function registerStaff() {
+            const username = document.getElementById('newUsername').value.trim();
+            const email = document.getElementById('newEmail').value.trim();
+            const password = document.getElementById('newPassword').value;
+            const rol = document.getElementById('newRol').value;
+            const errorEl = document.getElementById('staffError');
 
-                <!-- Lista de usuarios -->
-                <button class="buy-btn" onclick="loadDashboard()">← Volver</button>
-                <div class="products-grid" id="usersGrid"></div>
-            </div>
-        `;
-        displayUsers();
-    }
-
-    function displayUsers() {
-        const grid = document.getElementById('usersGrid');
-        const roles = { admin: 'Administrador', almacenero: 'Almacenero', usuario: 'Cliente' };
-        grid.innerHTML = allUsers.map(u => `
-            <div class="product-card">
-                <div class="product-info">
-                    <div class="product-name">👤 ${u.username} ${u.is_active ? '' : '(🔒 inactivo)'}</div>
-                    <div class="product-category">Email: ${u.email || 'N/A'}</div>
-                    <div class="product-category">Rol: ${roles[u.rol] || u.rol}</div>
-                    <select onchange="changeRole(${u.id}, this.value)" style="width:100%; margin:5px 0;">
-                        <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Administrador</option>
-                        <option value="almacenero" ${u.rol === 'almacenero' ? 'selected' : ''}>Almacenero</option>
-                        <option value="usuario" ${u.rol === 'usuario' ? 'selected' : ''}>Cliente</option>
-                    </select>
-                    <button class="buy-btn small ${u.is_active ? 'secondary' : ''}" 
-                            onclick="toggleStatus(${u.id}, ${u.is_active})">
-                        ${u.is_active ? '🔒 Desactivar' : '🔓 Activar'}
-                    </button>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    // ✅ Registrar staff (admin/almacenero)
-    async function registerStaff() {
-        const username = document.getElementById('newUsername').value.trim();
-        const email = document.getElementById('newEmail').value.trim();
-        const password = document.getElementById('newPassword').value;
-        const rol = document.getElementById('newRol').value;
-        const errorEl = document.getElementById('staffError');
-
-        if (!username || !email || !password || !rol) {
-            showError('Todos los campos son requeridos', errorEl);
-            return;
-        }
-
-        if (password.length < 6) {
-            showError('La contraseña debe tener al menos 6 caracteres', errorEl);
-            return;
-        }
-
-        if (!['admin', 'almacenero'].includes(rol)) {
-            showError('Rol inválido. Solo admin o almacenero.', errorEl);
-            return;
-        }
-
-        try {
-            const res = await fetch('http://127.0.0.1:8000/api/register-staff/', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Token ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, email, password, rol })
-            });
-
-            const data = await res.json();
-
-            if (res.ok) {
-                alert('✅ Usuario registrado exitosamente');
-                // Actualizar lista
-                allUsers.push(data);
-                displayUsers();
-                // Limpiar formulario
-                document.getElementById('newUsername').value = '';
-                document.getElementById('newEmail').value = '';
-                document.getElementById('newPassword').value = '';
-                document.getElementById('newRol').value = '';
-                errorEl.style.display = 'none';
-            } else {
-                throw new Error(data.error || data.detail || 'Error desconocido');
+            if (!username || !email || !password || !rol) {
+                showError('Todos los campos son requeridos', errorEl);
+                return;
             }
-        } catch (err) {
-            showError(err.message, errorEl);
-            console.error('Error al registrar staff:', err);
+
+            if (password.length < 6) {
+                showError('La contraseña debe tener al menos 6 caracteres', errorEl);
+                return;
+            }
+
+            if (!['admin', 'almacenero'].includes(rol)) {
+                showError('Rol inválido. Solo admin o almacenero.', errorEl);
+                return;
+            }
+
+            try {
+                const res = await fetch('http://127.0.0.1:8000/api/register-staff/', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Token ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, email, password, rol })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    alert('✅ Usuario registrado exitosamente');
+                    // Actualizar lista
+                    allUsers.push(data);
+                    displayUsers();
+                    // Limpiar formulario
+                    document.getElementById('newUsername').value = '';
+                    document.getElementById('newEmail').value = '';
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('newRol').value = '';
+                    errorEl.style.display = 'none';
+                } else {
+                    throw new Error(data.error || data.detail || 'Error desconocido');
+                }
+            } catch (err) {
+                showError(err.message, errorEl);
+                console.error('Error al registrar staff:', err);
+            }
         }
-    }
 
-    function showError(message, element) {
-        element.textContent = message;
-        element.style.display = 'block';
-        setTimeout(() => {
-            element.style.display = 'none';
-        }, 5000);
-    }
-
+        function showError(message, element) {
+            element.textContent = message;
+            element.style.display = 'block';
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 5000);
+        }
 
         async function changeRole(userId, newRole) {
             if (!confirm('¿Cambiar rol?')) return;
@@ -403,7 +805,12 @@
             filterProducts(value);
         }
 
-        document.getElementById('userBtn').addEventListener('click', function(e) {
+        function toggleSubmenu(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('active');
+        }
+
+        document.getElementById('userBtn')?.addEventListener('click', function(e) {
             e.stopPropagation();
             document.getElementById('userDropdown').classList.toggle('active');
         });
@@ -412,19 +819,19 @@
             document.getElementById('userDropdown').classList.remove('active');
         });
 
-        function logout() {
+        document.getElementById('logoutBtn')?.addEventListener('click', function() {
             if (confirm('¿Desea cerrar sesión?')) {
                 localStorage.clear();
                 window.location.href = 'login.html';
             }
-        }
+        });
 
         // ✅ Añadir botón gestión usuarios + iniciar
         window.addEventListener('load', () => {
             // Añadir botón dinámicamente
             const sidebar = document.querySelector('.sidebar');
             const lastItem = Array.from(sidebar.children).find(el => 
-                el.textContent?.includes('Productos del Almacenero')
+                el.textContent?.includes('Ver productos vendidos')
             );
             if (lastItem) {
                 const btn = document.createElement('div');
@@ -433,6 +840,14 @@
                 btn.onclick = showUserManagement;
                 lastItem.after(btn);
             }
+            
+            // Añadir evento para la tecla Enter en el filtro de fecha
+            document.getElementById('dateFilter')?.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    filterSoldProductsByDate();
+                }
+            });
+            
             loadDashboard();
         });
     </script>
